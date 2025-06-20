@@ -1,0 +1,424 @@
+import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import re
+
+# Initialize session state
+if 'selected_suggestion' not in st.session_state:
+    st.session_state.selected_suggestion = ""
+if 'plot_type' not in st.session_state:
+    st.session_state.plot_type = "Line Plot"
+if 'x_column' not in st.session_state:
+    st.session_state.x_column = None
+if 'y_column' not in st.session_state:
+    st.session_state.y_column = None
+if 'hist_column' not in st.session_state:
+    st.session_state.hist_column = None
+if 'label_column' not in st.session_state:
+    st.session_state.label_column = None
+if 'value_column' not in st.session_state:
+    st.session_state.value_column = None
+
+# --- Streamlit App Title (Centered with Icon) ---
+st.markdown("<h1 style='text-align: center;'>📊 Data Visualization Generator</h1>", unsafe_allow_html=True)
+
+# --- File Uploader with Icon ---
+uploaded_file = st.file_uploader("📂 Choose a CSV file", type="csv")
+
+# --- Cached function to load data ---
+@st.cache_data
+def load_data(file):
+    """Caches data loading to improve performance on reruns."""
+    if file is not None:
+        try:
+            data = pd.read_csv(file)
+            return data
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+            return None
+    return None
+
+# Load data using the cached function
+data = load_data(uploaded_file)
+
+def parse_suggestion(suggestion):
+    """Robustly parse suggestion string to extract plot type and columns"""
+    if not suggestion:
+        return None, None, None
+    
+    try:
+        # Extract plot type
+        if "Line Plot" in suggestion:
+            plot_type = "Line Plot"
+        elif "Scatter Plot" in suggestion:
+            plot_type = "Scatter Plot"
+        elif "Bar Chart" in suggestion:
+            plot_type = "Bar Chart"
+        elif "Histogram" in suggestion:
+            plot_type = "Histogram"
+        elif "Pie Chart" in suggestion:
+            plot_type = "Pie Chart"
+        elif "Doughnut Chart" in suggestion:
+            plot_type = "Doughnut Chart"
+        else:
+            return None, None, None
+        
+        # Extract columns using regex
+        cols = re.findall(r"'(.*?)'", suggestion)
+        
+        if plot_type in ["Line Plot", "Scatter Plot", "Bar Chart"]:
+            if len(cols) >= 2:
+                return plot_type, cols[0], cols[1]
+        elif plot_type == "Histogram":
+            if len(cols) >= 1:
+                return plot_type, cols[0], None
+        elif plot_type in ["Pie Chart", "Doughnut Chart"]:
+            if len(cols) >= 2:
+                return plot_type, cols[0], cols[1]
+                
+    except Exception as e:
+        st.error(f"Error parsing suggestion: {e}")
+    
+    return None, None, None
+
+# The rest of the script executes on every rerun if data is loaded
+if data is not None:
+    st.write("Data Preview:")
+    st.write(data.head())
+
+    # --- Customization Options with Icon ---
+    st.sidebar.header("⚙️ Plot Customization")
+
+    # Input for plot title
+    plot_title = st.sidebar.text_input("Plot Title", "My Plot")
+
+    # Allow user to select columns based on plot type
+    column_options = data.columns.tolist()
+
+    # --- Suggest Visualizations based on Data Types and Combinations with Icon ---
+    st.sidebar.subheader("💡 Suggested Visualizations")
+    numeric_cols_suggest = data.select_dtypes(include=np.number).columns.tolist()
+    categorical_cols_suggest = data.select_dtypes(include=['object', 'category']).columns.tolist()
+
+    suggestions = []
+
+    # Suggest Line/Scatter plots for pairs of numeric columns
+    if len(numeric_cols_suggest) >= 2:
+        for i in range(len(numeric_cols_suggest)):
+            for j in range(i + 1, len(numeric_cols_suggest)):
+                col1 = numeric_cols_suggest[i]
+                col2 = numeric_cols_suggest[j]
+                suggestions.append(f"Line Plot: '{col1}' vs '{col2}'")
+                suggestions.append(f"Scatter Plot: '{col1}' vs '{col2}'")
+
+    # Suggest Bar/Pie/Doughnut charts for categorical vs numeric columns
+    if len(categorical_cols_suggest) >= 1 and len(numeric_cols_suggest) >= 1:
+        for cat_col in categorical_cols_suggest:
+            for num_col in numeric_cols_suggest:
+                suggestions.append(f"Bar Chart: '{cat_col}' (Categories) vs '{num_col}' (Values)")
+                suggestions.append(f"Pie Chart: '{cat_col}' (Labels) & '{num_col}' (Values)")
+                suggestions.append(f"Doughnut Chart: '{cat_col}' (Labels) & '{num_col}' (Values)")
+
+    # Suggest Histograms for individual numeric columns
+    if len(numeric_cols_suggest) >= 1:
+        for num_col in numeric_cols_suggest:
+            suggestions.append(f"Histogram: '{num_col}'")
+
+    # Display suggested visualizations as a list
+    if suggestions:
+        selected_suggestion = st.sidebar.selectbox(
+            "Select a Suggested Visualization", 
+            [""] + suggestions,
+            key='suggestion_select',
+            index=0 if st.session_state.selected_suggestion not in suggestions 
+                  else suggestions.index(st.session_state.selected_suggestion) + 1
+        )
+        
+        # Update session state when suggestion changes
+        if selected_suggestion != st.session_state.selected_suggestion:
+            st.session_state.selected_suggestion = selected_suggestion
+            plot_type, col1, col2 = parse_suggestion(selected_suggestion)
+            
+            if plot_type:
+                st.session_state.plot_type = plot_type
+                if plot_type in ["Line Plot", "Scatter Plot", "Bar Chart"]:
+                    st.session_state.x_column = col1
+                    st.session_state.y_column = col2
+                    st.session_state.hist_column = None
+                    st.session_state.label_column = None
+                    st.session_state.value_column = None
+                elif plot_type == "Histogram":
+                    st.session_state.hist_column = col1
+                    st.session_state.x_column = None
+                    st.session_state.y_column = None
+                    st.session_state.label_column = None
+                    st.session_state.value_column = None
+                elif plot_type in ["Pie Chart", "Doughnut Chart"]:
+                    st.session_state.label_column = col1
+                    st.session_state.value_column = col2
+                    st.session_state.x_column = None
+                    st.session_state.y_column = None
+                    st.session_state.hist_column = None
+    else:
+        st.sidebar.info("Data does not contain suitable columns for common plot types.")
+
+    # --- Selectbox for Plot Type (Manual Selection) ---
+    plot_type = st.sidebar.selectbox(
+        "Select Plot Type",
+        ["Line Plot", "Scatter Plot", "Bar Chart", "Histogram", "Pie Chart", "Doughnut Chart"],
+        key='main_plot_type_select',
+        index=["Line Plot", "Scatter Plot", "Bar Chart", "Histogram", "Pie Chart", "Doughnut Chart"].index(st.session_state.plot_type)
+    )
+
+    # Update session state if plot type changes manually
+    if plot_type != st.session_state.plot_type:
+        st.session_state.plot_type = plot_type
+        st.session_state.selected_suggestion = ""
+
+    xlabel = "X-axis"
+    ylabel = "Y-axis"
+
+    if len(column_options) > 0:
+        if plot_type in ['Line Plot', 'Scatter Plot']:
+            st.sidebar.subheader("Select Columns for Plot")
+            numeric_columns = data.select_dtypes(include=np.number).columns.tolist()
+
+            if len(numeric_columns) >= 2:
+                x_column = st.sidebar.selectbox(
+                    "Select X-axis column", 
+                    numeric_columns,
+                    index=numeric_columns.index(st.session_state.x_column) if st.session_state.x_column in numeric_columns else 0,
+                    key='x_col_select'
+                )
+                st.session_state.x_column = x_column
+                
+                y_options = [col for col in numeric_columns if col != x_column]
+                if len(y_options) > 0:
+                    y_column = st.sidebar.selectbox(
+                        "Select Y-axis column", 
+                        y_options,
+                        index=y_options.index(st.session_state.y_column) if st.session_state.y_column in y_options else 0,
+                        key='y_col_select'
+                    )
+                    st.session_state.y_column = y_column
+                else:
+                    st.sidebar.warning("Only one numeric column available. Cannot create a Line or Scatter plot.")
+                    st.session_state.y_column = x_column  # Fallback
+
+            elif len(numeric_columns) == 1:
+                st.sidebar.warning(f"Only one numeric column ('{numeric_columns[0]}') available. Need at least two for Line or Scatter plot.")
+                st.session_state.x_column = numeric_columns[0]
+                st.session_state.y_column = numeric_columns[0]
+            else:
+                st.sidebar.warning("No numeric columns available for Line or Scatter plot.")
+
+            # Input for axis labels, defaulting to column names
+            if st.session_state.x_column:
+                xlabel = st.sidebar.text_input("X-axis Label", st.session_state.x_column)
+            if st.session_state.y_column:
+                ylabel = st.sidebar.text_input("Y-axis Label", st.session_state.y_column)
+
+        elif plot_type == 'Bar Chart':
+            st.sidebar.subheader("Select Columns for Bar Chart")
+            categorical_columns = data.select_dtypes(include=['object', 'category']).columns.tolist()
+            numeric_columns = data.select_dtypes(include=np.number).columns.tolist()
+
+            if len(categorical_columns) > 0 and len(numeric_columns) > 0:
+                x_column = st.sidebar.selectbox(
+                    "Select Categorical Column (X-axis)", 
+                    categorical_columns,
+                    index=categorical_columns.index(st.session_state.x_column) if st.session_state.x_column in categorical_columns else 0,
+                    key='bar_x_col_select'
+                )
+                st.session_state.x_column = x_column
+                
+                y_column = st.sidebar.selectbox(
+                    "Select Numeric Column (Y-axis)", 
+                    numeric_columns,
+                    index=numeric_columns.index(st.session_state.y_column) if st.session_state.y_column in numeric_columns else 0,
+                    key='bar_y_col_select'
+                )
+                st.session_state.y_column = y_column
+                
+                xlabel = st.sidebar.text_input("X-axis Label", st.session_state.x_column)
+                ylabel = st.sidebar.text_input("Y-axis Label", st.session_state.y_column)
+            else:
+                st.sidebar.warning("Need at least one categorical and one numeric column for a Bar Chart.")
+                xlabel = st.sidebar.text_input("X-axis Label", "Category")
+                ylabel = st.sidebar.text_input("Y-axis Label", "Value")
+
+        elif plot_type == 'Histogram':
+            st.sidebar.subheader("Select Column for Histogram")
+            numeric_columns = data.select_dtypes(include=np.number).columns.tolist()
+
+            if len(numeric_columns) > 0:
+                hist_column = st.sidebar.selectbox(
+                    "Select Numeric Column", 
+                    numeric_columns,
+                    index=numeric_columns.index(st.session_state.hist_column) if st.session_state.hist_column in numeric_columns else 0,
+                    key='hist_col_select'
+                )
+                st.session_state.hist_column = hist_column
+                
+                xlabel = st.sidebar.text_input("X-axis Label", st.session_state.hist_column)
+                ylabel = st.sidebar.text_input("Y-axis Label", "Frequency")
+            else:
+                st.sidebar.warning("No numeric columns available for a Histogram.")
+                xlabel = st.sidebar.text_input("X-axis Label", "Value")
+                ylabel = st.sidebar.text_input("Y-axis Label", "Frequency")
+
+        elif plot_type in ['Pie Chart', 'Doughnut Chart']:
+            st.sidebar.subheader(f"Select Columns for {plot_type}")
+            categorical_columns = data.select_dtypes(include=['object', 'category']).columns.tolist()
+            numeric_columns = data.select_dtypes(include=np.number).columns.tolist()
+
+            if len(categorical_columns) > 0 and len(numeric_columns) > 0:
+                label_column = st.sidebar.selectbox(
+                    "Select Label Column (Categories)", 
+                    categorical_columns,
+                    index=categorical_columns.index(st.session_state.label_column) if st.session_state.label_column in categorical_columns else 0,
+                    key='label_col_select'
+                )
+                st.session_state.label_column = label_column
+                
+                value_column = st.sidebar.selectbox(
+                    "Select Value Column (Sizes)", 
+                    numeric_columns,
+                    index=numeric_columns.index(st.session_state.value_column) if st.session_state.value_column in numeric_columns else 0,
+                    key='value_col_select'
+                )
+                st.session_state.value_column = value_column
+                
+                xlabel = st.sidebar.text_input("X-axis Label (Ignored for Pie/Doughnut)", "")
+                ylabel = st.sidebar.text_input("Y-axis Label (Ignored for Pie/Doughnut)", "")
+            else:
+                st.sidebar.warning(f"Need at least one categorical/object and one numeric column for a {plot_type}.")
+                xlabel = st.sidebar.text_input("X-axis Label (Ignored for Pie/Doughnut)", "")
+                ylabel = st.sidebar.text_input("Y-axis Label (Ignored for Pie/Doughnut)", "")
+
+        # --- Visualization Function ---
+        def generate_plot(data, plot_type, x_col=None, y_col=None, hist_col=None, label_col=None, value_col=None, title='Simple Plot', xlabel='X-axis', ylabel='Y-axis'):
+            """Generates a plot figure based on type."""
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            try:
+                if plot_type == 'Line Plot':
+                    if x_col and y_col and pd.api.types.is_numeric_dtype(data[x_col]) and pd.api.types.is_numeric_dtype(data[y_col]):
+                        ax.plot(data[x_col], data[y_col])
+                        ax.set_xlabel(xlabel)
+                        ax.set_ylabel(ylabel)
+                        ax.grid(True)
+                    else:
+                        st.error(f"Cannot create Line Plot: Ensure '{x_col}' and '{y_col}' are selected and numeric.")
+                        return None
+                elif plot_type == 'Scatter Plot':
+                    if x_col and y_col and pd.api.types.is_numeric_dtype(data[x_col]) and pd.api.types.is_numeric_dtype(data[y_col]):
+                        ax.scatter(data[x_col], data[y_col])
+                        ax.set_xlabel(xlabel)
+                        ax.set_ylabel(ylabel)
+                        ax.grid(True)
+                    else:
+                        st.error(f"Cannot create Scatter Plot: Ensure '{x_col}' and '{y_col}' are selected and numeric.")
+                        return None
+                elif plot_type == 'Bar Chart':
+                    if x_col and y_col and (pd.api.types.is_object_dtype(data[x_col]) or pd.api.types.is_categorical_dtype(data[x_col])) and pd.api.types.is_numeric_dtype(data[y_col]):
+                        try:
+                            aggregated_data = data.groupby(x_col)[y_col].sum().reset_index()
+                            ax.bar(aggregated_data[x_col].astype(str), aggregated_data[y_col])
+                            ax.set_xticklabels(aggregated_data[x_col].astype(str), rotation=45, ha='right')
+                            ax.set_xlabel(xlabel)
+                            ax.set_ylabel(ylabel)
+                            ax.grid(axis='y')
+                        except Exception as agg_e:
+                            st.error(f"Error aggregating data for Bar Chart: {agg_e}. Ensure the categorical column is suitable for grouping.")
+                            return None
+                    else:
+                        st.error(f"Cannot create Bar Chart: Ensure '{x_col}' is categorical/object and '{y_col}' is numeric.")
+                        return None
+                elif plot_type == 'Histogram':
+                    if hist_col and pd.api.types.is_numeric_dtype(data[hist_col]):
+                        ax.hist(data[hist_col], bins=20)
+                        ax.set_xlabel(xlabel)
+                        ax.set_ylabel(ylabel)
+                        ax.grid(axis='y')
+                    else:
+                        st.error(f"Cannot create Histogram: Ensure '{hist_col}' is selected and numeric.")
+                        return None
+                elif plot_type in ['Pie Chart', 'Doughnut Chart']:
+                    if label_col and value_col and (pd.api.types.is_object_dtype(data[label_col]) or pd.api.types.is_categorical_dtype(data[label_col])) and pd.api.types.is_numeric_dtype(data[value_col]):
+                        try:
+                            aggregated_data = data.groupby(label_col)[value_col].sum()
+                            wedgeprops = {'width': 0.4} if plot_type == 'Doughnut Chart' else None
+                            ax.pie(aggregated_data.values, labels=aggregated_data.index.astype(str), autopct='%1.1f%%', startangle=90, wedgeprops=wedgeprops)
+                            ax.axis('equal')
+                        except Exception as agg_e:
+                            st.error(f"Error aggregating data for {plot_type}: {agg_e}. Ensure columns are suitable.")
+                            return None
+                    else:
+                        st.error(f"Cannot create {plot_type}: Ensure '{label_col}' is categorical/object and '{value_col}' is numeric.")
+                        return None
+
+                ax.set_title(title)
+                plt.tight_layout()
+                return fig
+
+            except Exception as e:
+                st.error(f"Error generating plot: {e}")
+                return None
+
+        # --- Generate and Display Plot Button ---
+        if st.sidebar.button("Generate Plot"):
+            fig = None
+            if plot_type in ['Line Plot', 'Scatter Plot'] and st.session_state.x_column and st.session_state.y_column:
+                fig = generate_plot(
+                    data, 
+                    plot_type, 
+                    x_col=st.session_state.x_column, 
+                    y_col=st.session_state.y_column, 
+                    title=plot_title, 
+                    xlabel=xlabel, 
+                    ylabel=ylabel
+                )
+            elif plot_type == 'Bar Chart' and st.session_state.x_column and st.session_state.y_column:
+                fig = generate_plot(
+                    data, 
+                    plot_type, 
+                    x_col=st.session_state.x_column, 
+                    y_col=st.session_state.y_column, 
+                    title=plot_title, 
+                    xlabel=xlabel, 
+                    ylabel=ylabel
+                )
+            elif plot_type == 'Histogram' and st.session_state.hist_column:
+                fig = generate_plot(
+                    data, 
+                    plot_type, 
+                    hist_col=st.session_state.hist_column, 
+                    title=plot_title, 
+                    xlabel=xlabel, 
+                    ylabel=ylabel
+                )
+            elif plot_type in ['Pie Chart', 'Doughnut Chart'] and st.session_state.label_column and st.session_state.value_column:
+                fig = generate_plot(
+                    data, 
+                    plot_type, 
+                    label_col=st.session_state.label_column, 
+                    value_col=st.session_state.value_column, 
+                    title=plot_title
+                )
+            else:
+                st.warning("Please select appropriate columns for the chosen plot type.")
+
+            if fig is not None:
+                st.pyplot(fig)
+
+    else:
+        st.warning("Uploaded CSV has no columns to plot.")
+
+# --- Instructions for running with Icon ---
+st.sidebar.markdown("---")
+st.sidebar.info("ℹ️ Upload a CSV file and use the sidebar options to customize and generate your plot.")
+
+
+
