@@ -1,6 +1,9 @@
 # Vizz-Gen
 # Automated Data Visualization Generator 
 
+🔗 Live Demo: [Click Here](https://vizz-gen-puzptzv5a4yxgu8emuss8e.streamlit.app/)
+
+
 # Overview
 
 The Automated Data Visualization Generator is a user-friendly web application built with Streamlit that allows users to easily create, customize, and save various types of data visualizations from CSV files. This tool is designed for data analysts, scientists, and anyone interested in visualizing data without needing extensive programming knowledge.
