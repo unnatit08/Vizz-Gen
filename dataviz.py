@@ -34,6 +34,25 @@ if 'use_plotly' not in st.session_state:
 # --- Streamlit App Title (Centered with Icon) ---
 st.markdown("<h1 style='text-align: center;'>📊 Data Visualization Generator</h1>", unsafe_allow_html=True)
 
+# --- App Description without Image ---
+st.markdown("""
+<div style='text-align: center;'>
+    <p style='font-size: 18px;'>
+        Welcome to the <strong>Data Visualization Generator</strong> 🎯 <br>
+        This tool lets you turn your data into beautiful, interactive charts in just a few clicks. Whether you're a student, analyst, or data enthusiast, this app helps you explore, filter, and present your datasets visually.
+    </p>
+    <p style='font-size: 16px;'>
+        📂 Upload your CSV or Excel files <br>
+        📈 Choose from line plots, bar charts, pie charts, histograms, and more <br>
+        🎨 Customize themes, filters, labels, and trends <br>
+        💾 Export your plots as PNG, HTML, or CSV <br>
+        ⚡ Powered by Plotly, Matplotlib, and Streamlit for a smooth experience
+    </p>
+    <br>
+    <p style='font-size: 14px; color: gray;'>Interactive dashboards made simple with automation</p>
+</div>
+""", unsafe_allow_html=True)
+
 # --- File Uploader with Icon ---
 uploaded_file = st.file_uploader("📂 Choose a CSV file", type=["csv", "xlsx"])
 
