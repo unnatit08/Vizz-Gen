@@ -1,7 +1,7 @@
 # Vizz-Gen
 # Automated Data Visualization Generator 
 
-🔗 Live Demo: [Click Here](https://vizz-gen-b2oqu6ukadzmt9ajckf46j.streamlit.app/)
+🔗 Live Demo: [Click Here](https://vizz-gen-g6zc8mmrhfqdmcpwc39zpz.streamlit.app/) 
 
 
 # Overview
